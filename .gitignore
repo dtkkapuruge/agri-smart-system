@@ -1,0 +1,9 @@
+# Node modules & build folders
+**/node_modules/
+**/.next/
+**/dist/
+
+# Python Virtual Environments & Caches
+**/venv/
+**/__pycache__/
+**/.env
