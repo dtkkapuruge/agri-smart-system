@@ -1,0 +1,144 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// 1. User Table (Linked with Supabase Auth)
+model User {
+  user_id    String   @id @default(uuid())
+  email      String   @unique
+  phone      String?  @unique
+  role       String   // FARMER, BUYER, ADMIN
+  created_at DateTime @default(now())
+
+  farmer_profile FarmerProfile?
+  buyer_profile  BuyerProfile?
+}
+
+// 2. Farmer Profile
+model FarmerProfile {
+  profile_id     String   @id @default(uuid())
+  user_id        String   @unique
+  farm_name      String
+  // PostGIS Geography Point (Longitude, Latitude)
+  farm_location  Unsupported("geography(Point, 4326)")? 
+  current_rating Float    @default(0.0)
+  is_verified    Boolean  @default(false)
+
+  user           User     @relation(fields: [user_id], references: [user_id])
+  orders         Order[]
+  matching_logs  MatchingLog[]
+  deliveries     DeliveryFulfillment[]
+}
+
+// 3. Buyer Profile
+model BuyerProfile {
+  profile_id       String   @id @default(uuid())
+  user_id          String   @unique
+  delivery_address String
+  location         Unsupported("geography(Point, 4326)")?
+
+  user             User     @relation(fields: [user_id], references: [user_id])
+  orders           Order[]
+}
+
+// 4. Products Table
+model Product {
+  product_id  String   @id @default(uuid())
+  name        String
+  category    String
+  description String?
+  image_url   String?
+
+  orders        Order[]
+  market_prices MarketPrice[]
+}
+
+// 5. Market Prices (HARTI Data)
+model MarketPrice {
+  price_id         String   @id @default(uuid())
+  product_id       String
+  harti_base_price Decimal  @db.Decimal(10, 2)
+  updated_at       DateTime @updatedAt
+
+  product    Product  @relation(fields: [product_id], references: [product_id])
+  ai_reports AiVerificationReport[]
+}
+
+// 6. Orders Table
+model Order {
+  order_id    String   @id @default(uuid())
+  buyer_id    String
+  farmer_id   String?  // Initially null until a farmer accepts
+  product_id  String
+  quantity    Int
+  status      String   @default("PENDING") // PENDING, MATCHED, PAID, DELIVERED
+  created_at  DateTime @default(now())
+
+  buyer      BuyerProfile  @relation(fields: [buyer_id], references: [profile_id])
+  farmer     FarmerProfile? @relation(fields: [farmer_id], references: [profile_id])
+  product    Product       @relation(fields: [product_id], references: [product_id])
+
+  matching_logs MatchingLog[]
+  ai_report     AiVerificationReport?
+  delivery      DeliveryFulfillment?
+  payment       Payment? 
+}
+
+// 7. Matching Logs (Tiered Notification)
+model MatchingLog {
+  match_id           String   @id @default(uuid())
+  order_id           String
+  notified_farmer_id String
+  tier_level         Int
+  response_status    String   // PENDING, ACCEPTED, REJECTED
+
+  order  Order         @relation(fields: [order_id], references: [order_id])
+  farmer FarmerProfile @relation(fields: [notified_farmer_id], references: [profile_id])
+}
+
+// 8. AI Verification Reports
+model AiVerificationReport {
+  report_id          String   @id @default(uuid())
+  order_id           String   @unique
+  price_id           String
+  image_url          String
+  ai_grade           String   // Grade A, B, C
+  quality_score      Float
+  metadata_verified  Boolean
+  forensics_location Unsupported("geography(Point, 4326)")?
+  final_price        Decimal  @db.Decimal(10, 2)
+
+  order        Order       @relation(fields: [order_id], references: [order_id])
+  market_price MarketPrice @relation(fields: [price_id], references: [price_id])
+}
+
+// 9. Delivery Fulfillment
+model DeliveryFulfillment {
+  delivery_id  String    @id @default(uuid())
+  order_id     String    @unique
+  farmer_id    String
+  otp_code     String
+  status       String    @default("PENDING") // PENDING, DELIVERED
+  delivered_at DateTime?
+
+  order  Order         @relation(fields: [order_id], references: [order_id])
+  farmer FarmerProfile @relation(fields: [farmer_id], references: [profile_id])
+}
+
+// 10. Payment Table
+model Payment {
+  payment_id        String   @id @default(uuid())
+  order_id          String   @unique
+  amount            Decimal  @db.Decimal(10, 2)
+  status            String   @default("PENDING") // PENDING, COMPLETED, FAILED
+  stripe_payment_id String?  // Reference for Stripe
+  paid_at           DateTime?
+
+  order             Order    @relation(fields: [order_id], references: [order_id])
+}
