@@ -51,6 +51,8 @@ export default function FarmerDashboard() {
   const videoRef     = useRef<HTMLVideoElement>(null);
   const canvasRef    = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Hold the real File/Blob so FormData always gets a valid Blob
+  const imageBlobRef = useRef<File | Blob | null>(null);
 
   const name = profile?.full_name?.split(' ')[0] ?? 'Farmer';
   const farmerId = profile?.profile_id ?? profile?.id ?? user?.id;
@@ -211,7 +213,13 @@ export default function FarmerDashboard() {
       canvas.width  = video.videoWidth;
       canvas.height = video.videoHeight;
       canvas.getContext('2d')?.drawImage(video, 0, 0, canvas.width, canvas.height);
-      setImageSrc(canvas.toDataURL('image/jpeg'));
+      // Convert canvas to Blob for FormData compatibility
+      canvas.toBlob((blob) => {
+        if (blob) {
+          imageBlobRef.current = blob;
+          setImageSrc(canvas.toDataURL('image/jpeg'));
+        }
+      }, 'image/jpeg', 0.92);
       stopCamera();
     }
   };
@@ -219,6 +227,8 @@ export default function FarmerDashboard() {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Store the original File so FormData gets a real Blob
+    imageBlobRef.current = file;
     const reader = new FileReader();
     reader.onload = (ev) => {
       setImageSrc(ev.target?.result as string);
@@ -233,12 +243,18 @@ export default function FarmerDashboard() {
     setImageSrc(null);
     setResult(null);
     setError(null);
+    imageBlobRef.current = null;
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   // ─── AI Grading ─────────────────────────────────────────────────────────────
   const analyzeCrop = async () => {
-    if (!imageSrc) return;
+    // Guard: must have a valid image blob
+    const imageFile = imageBlobRef.current;
+    if (!imageSrc || !imageFile) {
+      setError('Please select or capture an image before analyzing.');
+      return;
+    }
 
     // Guard: farmer_id is required by the backend
     if (!farmerId) {
@@ -250,12 +266,16 @@ export default function FarmerDashboard() {
     setError(null);
 
     try {
-      // Convert data URL → Blob
-      const res  = await fetch(imageSrc);
-      const blob = await res.blob();
+      // Log for debugging
+      console.log('[AI Grading] typeof imageFile:', typeof imageFile, '| size:', (imageFile as Blob).size);
 
       const form = new FormData();
-      form.append('file', blob, 'crop_image.jpg');
+      // imageFile is guaranteed to be a File or Blob
+      if (imageFile instanceof File) {
+        form.append('file', imageFile);
+      } else {
+        form.append('file', imageFile, 'crop_image.jpg');
+      }
       form.append('latitude', '6.9271');
       form.append('longitude', '79.8612');
       form.append('price_id', 'test-price-001');
@@ -296,9 +316,9 @@ export default function FarmerDashboard() {
         metadataVerified,
       });
 
-      // Refresh accepted orders & stats to display updated AI report status
+      // Refresh accepted orders & stats; await stats so Recent Submissions updates
       fetchAcceptedOrders();
-      fetchDashboardStats();
+      await fetchDashboardStats();
     } catch (err: unknown) {
       console.error('[Farmer Dashboard] AI grading error:', err);
       const msg = err instanceof Error ? err.message : String(err);

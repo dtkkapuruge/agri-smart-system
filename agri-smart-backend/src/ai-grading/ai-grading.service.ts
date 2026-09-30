@@ -181,6 +181,19 @@ export class AiGradingService {
       data: { status: 'ACCEPTED' },
     }).catch(() => { /* ignore if order already in different status */ });
 
+    // ── Save GradingSubmission so the farmer dashboard picks it up ─────────────
+    await this._saveGradingSubmission({
+      farmerIdInput: order.farmer_id,
+      imageUrl: uploadedImageUrl,
+      aiGrade: aiGrade,
+      qualityScore: typeof qualityScore === 'number' ? qualityScore : parseFloat(qualityScore),
+      defectPercentage: aiData.defect_percentage ?? null,
+      finalPrice: finalPrice,
+      metadataVerified: metadataVerified,
+      orderId: orderId,
+    });
+    // ──────────────────────────────────────────────────────────────────────────
+
     return savedReport;
   }
 
@@ -239,92 +252,16 @@ export class AiGradingService {
     };
 
     // ── ALWAYS save a GradingSubmission record ─────────────────────────────────
-    console.log(`💾 [GradingSubmission] Starting save for farmer_id="${dto.farmer_id}"...`);
-    try {
-      // Step 1: Resolve the farmer profile — accept either profile_id or user_id from the frontend
-      let farmerProfile = await this.prisma.farmerProfile.findFirst({
-        where: {
-          OR: [
-            { profile_id: dto.farmer_id },
-            { user_id: dto.farmer_id },
-          ],
-        },
-      });
-      console.log(`🔍 [GradingSubmission] FarmerProfile lookup result:`, farmerProfile ? `found profile_id="${farmerProfile.profile_id}"` : 'NOT FOUND');
-
-      if (!farmerProfile) {
-        console.warn(
-          `⚠️  [GradingSubmission] No FarmerProfile for id="${dto.farmer_id}". ` +
-          `Auto-creating User row + FarmerProfile...`,
-        );
-
-        // Step 2a: Ensure a User row exists (FarmerProfile has a FK to User)
-        // Check first — Supabase auth user may not have a corresponding User table row
-        const existingUser = await this.prisma.user.findUnique({
-          where: { user_id: dto.farmer_id },
-        });
-        console.log(`🔍 [GradingSubmission] User row lookup:`, existingUser ? 'EXISTS' : 'NOT FOUND — will create');
-
-        if (!existingUser) {
-          try {
-            await this.prisma.user.create({
-              data: {
-                user_id: dto.farmer_id,
-                email: `auto-${dto.farmer_id.substring(0, 8)}@agrismart.local`,
-                role: 'FARMER',
-              },
-            });
-            console.log(`✅ [GradingSubmission] User row created for user_id="${dto.farmer_id}"`);
-          } catch (userErr: any) {
-            // Could fail if email unique constraint triggers — try upsert fallback
-            console.warn(`⚠️  [GradingSubmission] User create failed (${userErr?.message}), trying upsert...`);
-            await this.prisma.user.upsert({
-              where: { user_id: dto.farmer_id },
-              update: {},
-              create: {
-                user_id: dto.farmer_id,
-                email: `auto-${Date.now()}@agrismart.local`,
-                role: 'FARMER',
-              },
-            });
-            console.log(`✅ [GradingSubmission] User upserted for user_id="${dto.farmer_id}"`);
-          }
-        }
-
-        // Step 2b: Create FarmerProfile linked to the User row
-        farmerProfile = await this.prisma.farmerProfile.create({
-          data: {
-            user_id: dto.farmer_id,
-            farm_name: 'My Farm',
-          },
-        });
-        console.log(`✅ [GradingSubmission] FarmerProfile created: profile_id="${farmerProfile.profile_id}"`);
-      }
-
-      // Step 3: Insert the GradingSubmission using the PROFILE_ID (not user_id)
-      const realFarmerId = farmerProfile.profile_id;
-      console.log(`💾 [GradingSubmission] Inserting with realFarmerId (profile_id)="${realFarmerId}"`);
-
-      const saved = await this.prisma.gradingSubmission.create({
-        data: {
-          farmer_id: realFarmerId,
-          image_url: report.image_url,
-          ai_grade: report.ai_grade,
-          quality_score: report.quality_score,
-          defect_percentage: aiData.defect_percentage ?? null,
-          final_price: report.final_price,
-          metadata_verified: report.metadata_verified,
-        },
-      });
-      console.log(`✅ [GradingSubmission] Saved! submission_id="${saved.submission_id}"`);
-    } catch (err: any) {
-      console.error(`❌ [GradingSubmission] FAILED for farmer_id="${dto.farmer_id}"`);
-      console.error(`   Error type : ${err?.constructor?.name}`);
-      console.error(`   Code       : ${err?.code}`);
-      console.error(`   Message    : ${err?.message}`);
-      console.error(`   Meta       :`, err?.meta);
-      // Do NOT re-throw — the grading result is still returned to the user
-    }
+    await this._saveGradingSubmission({
+      farmerIdInput: dto.farmer_id,
+      imageUrl: report.image_url,
+      aiGrade: report.ai_grade,
+      qualityScore: report.quality_score,
+      defectPercentage: aiData.defect_percentage ?? null,
+      finalPrice: report.final_price,
+      metadataVerified: report.metadata_verified,
+      orderId: orderId.startsWith('test-') ? undefined : orderId,
+    });
     // ──────────────────────────────────────────────────────────────────────────
 
     return {
@@ -332,6 +269,105 @@ export class AiGradingService {
       report,
       ai_raw_data: aiData,
     };
+  }
+
+  /**
+   * Shared helper: resolves the FarmerProfile (auto-creating User + Profile if needed)
+   * and inserts one GradingSubmission row. Called from both the production path
+   * (processGrading) and the test-mode path (_callAiEngineAndReturn).
+   *
+   * Never throws — a save failure must not roll back the grading result.
+   */
+  private async _saveGradingSubmission(opts: {
+    farmerIdInput: string;        // user_id OR profile_id from the frontend / order
+    imageUrl: string;
+    aiGrade: string;
+    qualityScore: number;
+    defectPercentage: number | null;
+    finalPrice: number;
+    metadataVerified: boolean;
+    orderId?: string;             // linked order, if available
+  }): Promise<void> {
+    const { farmerIdInput, imageUrl, aiGrade, qualityScore, defectPercentage, finalPrice, metadataVerified, orderId } = opts;
+    console.log(`💾 [GradingSubmission] Starting save for farmer_id="${farmerIdInput}"...`);
+    try {
+      // Step 1: Resolve FarmerProfile — accept either profile_id or user_id
+      let farmerProfile = await this.prisma.farmerProfile.findFirst({
+        where: {
+          OR: [
+            { profile_id: farmerIdInput },
+            { user_id: farmerIdInput },
+          ],
+        },
+      });
+      console.log(`🔍 [GradingSubmission] FarmerProfile lookup:`, farmerProfile ? `found profile_id="${farmerProfile.profile_id}"` : 'NOT FOUND');
+
+      if (!farmerProfile) {
+        console.warn(`⚠️  [GradingSubmission] No FarmerProfile for "${farmerIdInput}" — auto-creating...`);
+
+        // Step 2a: Ensure a User row exists (FK required by FarmerProfile)
+        const existingUser = await this.prisma.user.findUnique({
+          where: { user_id: farmerIdInput },
+        });
+        console.log(`🔍 [GradingSubmission] User row:`, existingUser ? 'EXISTS' : 'NOT FOUND — will create');
+
+        if (!existingUser) {
+          try {
+            await this.prisma.user.create({
+              data: {
+                user_id: farmerIdInput,
+                email: `auto-${farmerIdInput.substring(0, 8)}@agrismart.local`,
+                role: 'FARMER',
+              },
+            });
+            console.log(`✅ [GradingSubmission] User row created for user_id="${farmerIdInput}"`);
+          } catch (userErr: any) {
+            console.warn(`⚠️  [GradingSubmission] User create failed (${userErr?.message}), trying upsert...`);
+            await this.prisma.user.upsert({
+              where: { user_id: farmerIdInput },
+              update: {},
+              create: {
+                user_id: farmerIdInput,
+                email: `auto-${Date.now()}@agrismart.local`,
+                role: 'FARMER',
+              },
+            });
+            console.log(`✅ [GradingSubmission] User upserted for user_id="${farmerIdInput}"`);
+          }
+        }
+
+        // Step 2b: Create FarmerProfile linked to the User row
+        farmerProfile = await this.prisma.farmerProfile.create({
+          data: { user_id: farmerIdInput, farm_name: 'My Farm' },
+        });
+        console.log(`✅ [GradingSubmission] FarmerProfile created: profile_id="${farmerProfile.profile_id}"`);
+      }
+
+      // Step 3: Insert GradingSubmission using resolved PROFILE_ID
+      const realFarmerId = farmerProfile.profile_id;
+      console.log(`💾 [GradingSubmission] Inserting with profile_id="${realFarmerId}" order_id=${orderId ?? 'none'}`);
+
+      const saved = await this.prisma.gradingSubmission.create({
+        data: {
+          farmer_id: realFarmerId,
+          image_url: imageUrl,
+          ai_grade: aiGrade,
+          quality_score: qualityScore,
+          defect_percentage: defectPercentage,
+          final_price: finalPrice,
+          metadata_verified: metadataVerified,
+          ...(orderId ? { order_id: orderId } : {}),
+        },
+      });
+      console.log(`✅ [GradingSubmission] Saved! submission_id="${saved.submission_id}"`);
+    } catch (err: any) {
+      console.error(`❌ [GradingSubmission] FAILED for farmer_id="${farmerIdInput}"`);
+      console.error(`   Error type : ${err?.constructor?.name}`);
+      console.error(`   Code       : ${err?.code}`);
+      console.error(`   Message    : ${err?.message}`);
+      console.error(`   Meta       :`, err?.meta);
+      // Do NOT re-throw — grading result is still valid
+    }
   }
 
   /**
@@ -346,9 +382,17 @@ export class AiGradingService {
       mimetype = 'image/png';
     }
 
+    // Log buffer length before append — must be > 0
+    console.log(`   Buffer len (pre-append): ${file.buffer?.length ?? 'N/A'} bytes`);
+    if (!file.buffer || file.buffer.length === 0) {
+      throw new BadRequestException('Uploaded file buffer is empty — cannot send to AI grading engine.');
+    }
+
+    // Convert multer Buffer → Uint8Array so it satisfies the BlobPart type in Node.
+    const bytes = new Uint8Array(file.buffer);
+    const blob = new Blob([bytes], { type: mimetype || 'image/jpeg' });
     const formData = new FormData();
-    // Use raw Buffer to avoid empty content in FastAPI
-    formData.append('file', file.buffer as any, file.originalname);
+    formData.append('file', blob, file.originalname || 'crop.jpg');
 
     const fastApiUrl = this.config.get<string>('FASTAPI_AI_URL') || 'http://127.0.0.1:8000/predict-grade';
 
@@ -357,7 +401,7 @@ export class AiGradingService {
     console.log(`   File name  : ${file.originalname}`);
     console.log(`   MIME type  : ${mimetype}`);
     console.log(`   File size  : ${file.size} bytes`);
-    console.log(`   Buffer len : ${file.buffer?.length ?? 'N/A'} bytes`);
+    console.log(`   Blob size  : ${blob.size} bytes`);
 
     let aiResponse: Response;
     try {
