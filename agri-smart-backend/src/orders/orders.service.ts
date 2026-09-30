@@ -1,10 +1,11 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { MatchingService } from '../matching/matching.service'; // Added MatchingService import
 
 @Injectable()
 export class OrdersService {
+  private readonly logger = new Logger(OrdersService.name);
   constructor(
     private prisma: PrismaService,
     private matchingService: MatchingService, // Injected MatchingService
@@ -61,8 +62,12 @@ export class OrdersService {
     });
 
     // C. START THE SMART MATCHING AUTOMATICALLY
-    // This calls the algorithm to find nearest farmers and logs them in MatchingLog
-    await this.matchingService.findNearestFarmers(order.order_id);
+    // Wrapped in try/catch so a matching/PostGIS failure does NOT fail the order
+    try {
+      await this.matchingService.findNearestFarmers(order.order_id);
+    } catch (matchErr) {
+      this.logger.error(`Matching failed for order ${order.order_id}: ${matchErr?.message}`, matchErr?.stack);
+    }
 
     return order;
   }
