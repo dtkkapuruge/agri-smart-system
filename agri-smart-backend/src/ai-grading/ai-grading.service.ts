@@ -356,7 +356,6 @@ export class AiGradingService {
           defect_percentage: defectPercentage,
           final_price: finalPrice,
           metadata_verified: metadataVerified,
-          ...(orderId ? { order_id: orderId } : {}),
         },
       });
       console.log(`✅ [GradingSubmission] Saved! submission_id="${saved.submission_id}"`);

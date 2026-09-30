@@ -174,3 +174,18 @@ model ChatMessage {
 
   order       Order    @relation(fields: [order_id], references: [order_id])
 }
+model GradingSubmission {
+  submission_id     String   @id @default(uuid())
+  farmer_id         String
+  order_id          String?
+  image_url         String?
+  ai_grade          String
+  quality_score     Float
+  defect_percentage Float?
+  final_price       Decimal  @db.Decimal(10, 2)
+  metadata_verified Boolean  @default(false)
+  created_at        DateTime @default(now())
+
+  farmer FarmerProfile @relation(fields: [farmer_id], references: [profile_id])
+  order  Order?        @relation(fields: [order_id], references: [order_id])
+}
