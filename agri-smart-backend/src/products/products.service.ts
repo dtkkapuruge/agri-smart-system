@@ -20,9 +20,21 @@ export class ProductsService {
     });
   }
 
-  // 2. Get all products
+  // 2. Get all products (with latest market price)
   async getAllProducts() {
-    return this.prisma.product.findMany();
+    const products = await this.prisma.product.findMany({
+      include: {
+        market_prices: {
+          orderBy: { updated_at: 'desc' },
+          take: 1,
+        },
+      },
+    });
+    // Flatten: expose latest_price at top level for easy consumption
+    return products.map((p) => ({
+      ...p,
+      latest_price: p.market_prices[0]?.harti_base_price ?? null,
+    }));
   }
 
   // 3. Get one specific product

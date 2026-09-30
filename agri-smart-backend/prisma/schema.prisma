@@ -1,11 +1,10 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // 1. User Table (Linked with Supabase Auth)
@@ -34,6 +33,7 @@ model FarmerProfile {
   orders         Order[]
   matching_logs  MatchingLog[]
   deliveries     DeliveryFulfillment[]
+  submissions    GradingSubmission[]
 }
 
 // 3. Buyer Profile
@@ -88,6 +88,7 @@ model Order {
   ai_report     AiVerificationReport?
   delivery      DeliveryFulfillment?
   payment       Payment? 
+  chat_messages ChatMessage[]
 }
 
 // 7. Matching Logs (Tiered Notification)
@@ -96,7 +97,8 @@ model MatchingLog {
   order_id           String
   notified_farmer_id String
   tier_level         Int
-  response_status    String   // PENDING, ACCEPTED, REJECTED
+  response_status    String   // PENDING, ACCEPTED, REJECTED, EXPIRED
+  notified_at        DateTime @default(now())
 
   order  Order         @relation(fields: [order_id], references: [order_id])
   farmer FarmerProfile @relation(fields: [notified_farmer_id], references: [profile_id])
@@ -141,4 +143,31 @@ model Payment {
   paid_at           DateTime?
 
   order             Order    @relation(fields: [order_id], references: [order_id])
+}
+
+// 11. Grading Submission
+model GradingSubmission {
+  submission_id     String   @id @default(uuid())
+  farmer_id         String
+  image_url         String?
+  ai_grade          String
+  quality_score     Float
+  defect_percentage Float?
+  final_price       Decimal  @db.Decimal(10, 2)
+  metadata_verified Boolean  @default(false)
+  created_at        DateTime @default(now())
+
+  farmer FarmerProfile @relation(fields: [farmer_id], references: [profile_id])
+}
+
+// 12. Chat Messages
+model ChatMessage {
+  message_id  String   @id @default(uuid())
+  order_id    String
+  sender_id   String
+  sender_role String
+  text        String
+  created_at  DateTime @default(now())
+
+  order       Order    @relation(fields: [order_id], references: [order_id])
 }

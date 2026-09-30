@@ -19,91 +19,88 @@ export class AuthService {
   async syncProfile(supabaseUser: any, dto: SyncProfileDto) {
     const email = supabaseUser.email;
     const supabaseUserId = supabaseUser.id;
+    const role = (dto.role || supabaseUser.user_metadata?.role || 'FARMER').toUpperCase();
 
-    // Check if the user already exists in the local database
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email: email },
+    // 1. Find or create core User record
+    let user = await this.prisma.user.findFirst({
+      where: {
+        OR: [
+          { user_id: supabaseUserId },
+          { email: email },
+        ],
+      },
     });
 
-    if (existingUser) {
-      throw new ConflictException('A profile already exists for this user.');
-    }
-
-    // Role-specific validation
-    if (dto.role === 'FARMER' && !dto.farm_name) {
-      throw new BadRequestException('Farmers must provide a farm name.');
-    }
-
-    if (dto.role === 'BUYER' && !dto.delivery_address) {
-      throw new BadRequestException('Buyers must provide a delivery address.');
-    }
-
-    // Execute database transaction to ensure atomicity
-    const result = await this.prisma.$transaction(async (tx) => {
-      // Create the core User record
-      const user = await tx.user.create({
+    if (!user) {
+      user = await this.prisma.user.create({
         data: {
           user_id: supabaseUserId,
           email: email,
           phone: dto.phone || null,
-          role: dto.role,
+          role: role,
         },
       });
+    }
 
-      if (dto.role === 'FARMER') {
-        // Initialize Farmer Profile
-        const farmerProfile = await tx.farmerProfile.create({
+    let profileId = '';
+
+    if (role === 'FARMER') {
+      let farmerProfile = await this.prisma.farmerProfile.findUnique({
+        where: { user_id: user.user_id },
+      });
+
+      if (!farmerProfile) {
+        farmerProfile = await this.prisma.farmerProfile.create({
           data: {
             user_id: user.user_id,
-            farm_name: dto.farm_name,
+            farm_name: dto.farm_name || supabaseUser.user_metadata?.full_name || 'My Farm',
             current_rating: 0.0,
             is_verified: false,
           },
         });
+      }
 
-        // Set PostGIS location if coordinates are provided
-        if (dto.latitude && dto.longitude) {
-          await tx.$executeRaw`
-            UPDATE "FarmerProfile"
-            SET farm_location = ST_SetSRID(ST_MakePoint(${dto.longitude}, ${dto.latitude}), 4326)
-            WHERE profile_id = ${farmerProfile.profile_id}
-          `;
-        }
+      // Ensure PostGIS farm_location is set
+      const lat = dto.latitude ?? 6.9271;
+      const lng = dto.longitude ?? 79.8612;
+      await this.prisma.$executeRaw`
+        UPDATE "FarmerProfile"
+        SET farm_location = ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)
+        WHERE profile_id = ${farmerProfile.profile_id}
+      `;
 
-        return {
-          message: 'Farmer profile synchronized successfully.',
-          user_id: user.user_id,
-          profile_id: farmerProfile.profile_id,
-          role: 'FARMER',
-        };
-      } else {
-        // Initialize Buyer Profile
-        const buyerProfile = await tx.buyerProfile.create({
+      profileId = farmerProfile.profile_id;
+    } else {
+      let buyerProfile = await this.prisma.buyerProfile.findUnique({
+        where: { user_id: user.user_id },
+      });
+
+      if (!buyerProfile) {
+        buyerProfile = await this.prisma.buyerProfile.create({
           data: {
             user_id: user.user_id,
-            delivery_address: dto.delivery_address,
+            delivery_address: dto.delivery_address || 'Not Provided',
           },
         });
-
-        // Set PostGIS location if coordinates are provided
-        if (dto.latitude && dto.longitude) {
-          await tx.$executeRaw`
-            UPDATE "BuyerProfile"
-            SET location = ST_SetSRID(ST_MakePoint(${dto.longitude}, ${dto.latitude}), 4326)
-            WHERE profile_id = ${buyerProfile.profile_id}
-          `;
-        }
-
-        return {
-          message: 'Buyer profile synchronized successfully.',
-          user_id: user.user_id,
-          profile_id: buyerProfile.profile_id,
-          role: 'BUYER',
-        };
       }
-    });
 
-    return result;
+      const lat = dto.latitude ?? 6.9271;
+      const lng = dto.longitude ?? 79.8612;
+      await this.prisma.$executeRaw`
+        UPDATE "BuyerProfile"
+        SET location = ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)
+        WHERE profile_id = ${buyerProfile.profile_id}
+      `;
+
+      profileId = buyerProfile.profile_id;
+    }
+
+    return {
+      message: 'Profile synchronized successfully.',
+      user_id: user.user_id,
+      profile_id: profileId,
+      role: role,
+    };
   }
 
   /**

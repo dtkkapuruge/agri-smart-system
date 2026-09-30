@@ -10,6 +10,8 @@ import { MatchingModule } from './matching/matching.module';
 import { AiGradingModule } from './ai-grading/ai-grading.module';
 import { PaymentsModule } from './payments/payments.module';
 import { DeliveryModule } from './delivery/delivery.module';
+import { DashboardModule } from './dashboard/dashboard.module';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
   imports: [
@@ -22,6 +24,8 @@ import { DeliveryModule } from './delivery/delivery.module';
     AiGradingModule,
     PaymentsModule,
     DeliveryModule,
+    DashboardModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -58,7 +58,7 @@ async function runAiTest() {
 
     // 4. Test the API
     console.log(`📸 Step 4: Calling API with real Price ID: ${marketPrice.price_id}`);
-    const response = await fetch(`http://localhost:3000/ai-grading/${order.order_id}`, {
+    const response = await fetch(`http://localhost:3000/ai-grading/process-grading/${order.order_id}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

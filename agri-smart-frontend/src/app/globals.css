@@ -1,26 +1,180 @@
 @import "tailwindcss";
 
+/* ─── Design Tokens ──────────────────────────────────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Brand Palette */
+  --green-50:  #f0fdf4;
+  --green-100: #dcfce7;
+  --green-200: #bbf7d0;
+  --green-400: #4ade80;
+  --green-500: #22c55e;
+  --green-600: #16a34a;
+  --green-700: #15803d;
+  --green-800: #166534;
+  --green-900: #14532d;
+
+  --emerald-400: #34d399;
+  --emerald-500: #10b981;
+  --emerald-600: #059669;
+
+  /* Surface */
+  --background: #0f1714;
+  --surface:     #1a2520;
+  --surface-2:   #243328;
+  --surface-3:   #2e4035;
+
+  /* Text */
+  --text-primary:   #f0fdf4;
+  --text-secondary: #a3b8ad;
+  --text-muted:     #6b8a7a;
+
+  /* Border */
+  --border:       rgba(74, 222, 128, 0.12);
+  --border-focus: rgba(74, 222, 128, 0.45);
+
+  /* Status */
+  --error:   #f87171;
+  --success: #4ade80;
+  --warning: #fbbf24;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background:    var(--background);
+  --color-surface:       var(--surface);
+  --color-surface-2:     var(--surface-2);
+  --color-surface-3:     var(--surface-3);
+  --color-primary:       var(--green-500);
+  --color-primary-dark:  var(--green-600);
+  --color-accent:        var(--emerald-400);
+  --color-text-primary:  var(--text-primary);
+  --color-text-secondary:var(--text-secondary);
+  --color-text-muted:    var(--text-muted);
+  --color-border:        var(--border);
+  --color-border-focus:  var(--border-focus);
+  --color-error:         var(--error);
+  --color-success:       var(--success);
+  --color-warning:       var(--warning);
+  --font-sans:           var(--font-inter), system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ─── Base ───────────────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--background);
+  color: var(--text-primary);
+  font-family: var(--font-inter), system-ui, sans-serif;
+  line-height: 1.6;
+  min-height: 100dvh;
 }
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb {
+  background: var(--green-800);
+  border-radius: 3px;
+}
+
+/* ─── Focus ──────────────────────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--green-500);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ─── Utility: glass card ────────────────────────────────────────────────────── */
+.glass-card {
+  background: rgba(26, 37, 32, 0.80);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+/* ─── Utility: gradient text ─────────────────────────────────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, var(--green-400) 0%, var(--emerald-400) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Utility: glow button ───────────────────────────────────────────────────── */
+.btn-primary {
+  background: linear-gradient(135deg, var(--green-500) 0%, var(--emerald-500) 100%);
+  color: #fff;
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.25);
+}
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 32px rgba(34, 197, 94, 0.45);
+}
+.btn-primary:active { transform: translateY(0); }
+.btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--green-400);
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  border-radius: 10px;
+  border: 1px solid var(--border-focus);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.btn-outline:hover {
+  background: rgba(74, 222, 128, 0.08);
+}
+
+/* ─── Utility: input ─────────────────────────────────────────────────────────── */
+.input-field {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-primary);
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  outline: none;
+}
+.input-field::placeholder { color: var(--text-muted); }
+.input-field:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.10);
+}
+
+/* ─── Page transition ─────────────────────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up {
+  animation: fadeUp 0.4s ease forwards;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(34, 197, 94, 0.3); }
+  50%       { box-shadow: 0 0 24px rgba(34, 197, 94, 0.7); }
+}
+.animate-pulse-glow { animation: pulse-glow 2s infinite; }

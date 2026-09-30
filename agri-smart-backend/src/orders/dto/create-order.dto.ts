@@ -1,4 +1,4 @@
-import { IsString, IsInt, Min } from 'class-validator';
+import { IsString, IsInt, Min, IsOptional, IsNumber } from 'class-validator';
 
 export class CreateOrderDto {
   @IsString()
@@ -7,4 +7,12 @@ export class CreateOrderDto {
   @IsInt()
   @Min(1)
   quantity: number; // How many kilograms? (Minimum 1kg)
+
+  @IsOptional()
+  @IsNumber()
+  latitude?: number;
+
+  @IsOptional()
+  @IsNumber()
+  longitude?: number;
 }
