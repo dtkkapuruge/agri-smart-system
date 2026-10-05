@@ -11,23 +11,39 @@ interface StatCardProps {
 export default function StatCard({ icon, label, value, sub, accent }: StatCardProps) {
   return (
     <div
-      className="glass-card p-4 flex flex-col gap-2"
-      style={accent ? { borderColor: 'var(--border-focus)' } : {}}
+      className={`stat-card${accent ? ' accent' : ''}`}
     >
-      <div className="flex items-center justify-between">
-        <span className="text-2xl">{icon}</span>
-        {accent && (
-          <span
-            className="text-xs font-semibold px-2 py-0.5 rounded-full"
-            style={{ background: 'rgba(74,222,128,0.15)', color: 'var(--green-400)' }}
-          >
-            Live
-          </span>
-        )}
+      {/* Icon */}
+      <div
+        className="w-9 h-9 rounded-xl flex items-center justify-center mb-3 flex-shrink-0"
+        style={accent
+          ? { background: 'linear-gradient(135deg, #d1fae5, #dcfce7)', color: '#16a34a' }
+          : { background: 'linear-gradient(135deg, #f1f5f9, #f8fafc)', color: '#64748b' }
+        }
+      >
+        {typeof icon === 'string' ? <span className="text-lg">{icon}</span> : icon}
       </div>
-      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{label}</p>
-      <p className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{value}</p>
-      {sub && <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{sub}</p>}
+
+      {/* Value */}
+      <p
+        className="text-[1.6rem] font-black leading-none mb-1 tracking-tight"
+        style={{ color: accent ? '#15803d' : '#0f172a' }}
+      >
+        {value}
+      </p>
+
+      {/* Label */}
+      <p
+        className="text-xs font-semibold mb-0.5"
+        style={{ color: accent ? '#16a34a' : '#64748b' }}
+      >
+        {label}
+      </p>
+
+      {/* Sub */}
+      {sub && (
+        <p className="text-[11px]" style={{ color: '#94a3b8' }}>{sub}</p>
+      )}
     </div>
   );
 }

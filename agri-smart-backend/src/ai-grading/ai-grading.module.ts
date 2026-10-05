@@ -4,6 +4,7 @@ import { AiGradingController } from './ai-grading.controller';
 
 @Module({
   providers: [AiGradingService],
-  controllers: [AiGradingController]
+  controllers: [AiGradingController],
+  exports: [AiGradingService],
 })
 export class AiGradingModule {}

@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, HttpException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { PrismaService } from '../prisma/prisma.service';
@@ -109,7 +109,8 @@ export class AiGradingService {
       // 2. Call FastAPI AI Engine
       aiData = await this._callFastApi(file);
     } catch (error: any) {
-      // Re-throw BadRequestExceptions as-is; wrap anything else
+      // Re-throw HttpException (422 tomato-validation) and BadRequestException as-is
+      if (error instanceof HttpException) throw error;
       if (error instanceof BadRequestException) throw error;
       console.error('❌ [AI-Grading] Unexpected error communicating with AI service.');
       console.error(`   Error type : ${error?.constructor?.name}`);
@@ -198,6 +199,112 @@ export class AiGradingService {
   }
 
   /**
+   * Processes a product image for independent farmer listing.
+   */
+  async processIndependentListing(dto: any, file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('Image file is required for AI grading.');
+    }
+
+    if (!dto.farmer_id) {
+      throw new BadRequestException('farmer_id is required.');
+    }
+    if (!dto.product_id) {
+      throw new BadRequestException('product_id is required.');
+    }
+
+    // AI Grading: Send the file to FastAPI service & Supabase Storage
+    let aiData: any;
+    let uploadedImageUrl = dto.image_url || 'local_upload';
+
+    try {
+      // 1. Upload image to Supabase storage
+      const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const filePath = `listings/listing_${Date.now()}_${safeName}`;
+
+      let uploadMime = file.mimetype || 'image/jpeg';
+      if (!uploadMime.startsWith('image/')) uploadMime = 'image/jpeg';
+
+      const { error: supaError } = await this.supabase.storage
+        .from('ai-grades')
+        .upload(filePath, file.buffer, {
+          contentType: uploadMime,
+          upsert: true,
+        });
+
+      if (!supaError) {
+        const { data: publicUrlData } = this.supabase.storage
+          .from('ai-grades')
+          .getPublicUrl(filePath);
+        if (publicUrlData?.publicUrl) {
+          uploadedImageUrl = publicUrlData.publicUrl;
+        }
+      }
+
+      // 2. Call FastAPI AI Engine
+      aiData = await this._callFastApi(file);
+    } catch (error: any) {
+      if (error instanceof HttpException) throw error;
+      if (error instanceof BadRequestException) throw error;
+      throw new BadRequestException(`Failed to process image: ${error?.message}`);
+    }
+
+    const aiGrade = aiData.grade || aiData.quality_grade || aiData.grading || 'A';
+    const qualityScore = aiData.score || aiData.confidence || aiData.quality_score || 98.5;
+    const defectPercentage = aiData.defect_percentage ?? null;
+
+    let basePrice = 100.0;
+    const marketPrice = await this.prisma.marketPrice.findFirst({
+      where: { product_id: dto.product_id }
+    });
+
+    if (marketPrice) {
+      basePrice = Number(marketPrice.harti_base_price);
+    }
+    
+    let finalPrice = basePrice;
+    if (aiGrade === 'B') finalPrice = basePrice * 0.8;
+    if (aiGrade === 'C') finalPrice = basePrice * 0.5;
+
+    // Resolve FarmerProfile (accept either profile_id or user_id)
+    const farmerProfile = await this.prisma.farmerProfile.findFirst({
+      where: {
+        OR: [
+          { profile_id: dto.farmer_id },
+          { user_id: dto.farmer_id },
+        ],
+      },
+    });
+
+    if (!farmerProfile) {
+      throw new BadRequestException(`Farmer profile not found for ID: ${dto.farmer_id}`);
+    }
+
+    try {
+      // Create the FarmerListing
+      const listing = await this.prisma.farmerListing.create({
+        data: {
+          farmer_id: farmerProfile.profile_id,
+          product_id: dto.product_id,
+          quantity: Number(dto.quantity),
+          image_url: uploadedImageUrl,
+          ai_grade: aiGrade,
+          quality_score: typeof qualityScore === 'number' ? qualityScore : parseFloat(qualityScore),
+          defect_percentage: defectPercentage,
+          price_per_kg: finalPrice,
+          status: "AVAILABLE"
+        }
+      });
+
+      return listing;
+    } catch (dbError: any) {
+      console.error('❌ [processIndependentListing] Database error:', dbError);
+      throw new BadRequestException(`Failed to save listing to database: ${dbError.message}`);
+    }
+  }
+
+
+  /**
    * TEST MODE helper: calls the FastAPI AI engine directly and returns result.
    * Skips DB order check and Supabase storage upload, but ALWAYS saves a GradingSubmission.
    */
@@ -216,6 +323,7 @@ export class AiGradingService {
       );
     }
 
+    // _callFastApi may throw HttpException (422) — let it propagate as-is
     const aiData = await this._callFastApi(file);
 
     const aiGrade = aiData.grade || aiData.quality_grade || aiData.grading || 'A';
@@ -424,6 +532,7 @@ export class AiGradingService {
       console.error('❌ [AI-Grading] FastAPI returned a non-OK HTTP status.');
       console.error(`   HTTP Status : ${aiResponse.status} ${aiResponse.statusText}`);
       console.error(`   Raw Body    : ${errorText}`);
+
       throw new BadRequestException(
         `AI engine responded with HTTP ${aiResponse.status}. Body: ${errorText}`,
       );

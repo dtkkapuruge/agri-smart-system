@@ -13,6 +13,8 @@ import { DeliveryModule } from './delivery/delivery.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ChatModule } from './chat/chat.module';
 
+import { ListingsModule } from './listings/listings.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),  // Loads .env file
@@ -26,6 +28,7 @@ import { ChatModule } from './chat/chat.module';
     DeliveryModule,
     DashboardModule,
     ChatModule,
+    ListingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

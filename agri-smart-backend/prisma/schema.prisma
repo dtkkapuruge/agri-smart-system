@@ -34,6 +34,7 @@ model FarmerProfile {
   matching_logs  MatchingLog[]
   deliveries     DeliveryFulfillment[]
   submissions    GradingSubmission[]
+  listings       FarmerListing[]
 }
 
 // 3. Buyer Profile
@@ -57,6 +58,7 @@ model Product {
 
   orders        Order[]
   market_prices MarketPrice[]
+  listings      FarmerListing[]
 }
 
 // 5. Market Prices (HARTI Data)
@@ -76,6 +78,7 @@ model Order {
   buyer_id    String
   farmer_id   String?  // Initially null until a farmer accepts
   product_id  String
+  listing_id  String?
   quantity    Int
   status      String   @default("PENDING") // PENDING, MATCHED, PAID, DELIVERED
   created_at  DateTime @default(now())
@@ -83,6 +86,7 @@ model Order {
   buyer      BuyerProfile  @relation(fields: [buyer_id], references: [profile_id])
   farmer     FarmerProfile? @relation(fields: [farmer_id], references: [profile_id])
   product    Product       @relation(fields: [product_id], references: [product_id])
+  listing    FarmerListing? @relation(fields: [listing_id], references: [listing_id])
 
   matching_logs        MatchingLog[]
   ai_report            AiVerificationReport?
@@ -174,18 +178,22 @@ model ChatMessage {
 
   order       Order    @relation(fields: [order_id], references: [order_id])
 }
-model GradingSubmission {
-  submission_id     String   @id @default(uuid())
+
+// 13. Farmer Independent Listings
+model FarmerListing {
+  listing_id        String   @id @default(uuid())
   farmer_id         String
-  order_id          String?
+  product_id        String
+  quantity          Int
   image_url         String?
   ai_grade          String
   quality_score     Float
   defect_percentage Float?
-  final_price       Decimal  @db.Decimal(10, 2)
-  metadata_verified Boolean  @default(false)
+  price_per_kg      Decimal  @db.Decimal(10, 2)
+  status            String   @default("AVAILABLE") // AVAILABLE, SOLD, CANCELLED
   created_at        DateTime @default(now())
 
-  farmer FarmerProfile @relation(fields: [farmer_id], references: [profile_id])
-  order  Order?        @relation(fields: [order_id], references: [order_id])
+  farmer  FarmerProfile @relation(fields: [farmer_id], references: [profile_id])
+  product Product       @relation(fields: [product_id], references: [product_id])
+  orders  Order[]
 }

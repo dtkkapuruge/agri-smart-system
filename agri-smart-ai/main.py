@@ -49,76 +49,140 @@ async def predict_crop_grade(file: UploadFile = File(...)):
         # Prevent stream caching issues
         await file.seek(0)
         contents = await file.read()
-        
-        # 1. Image Masking and Defect Detection with OpenCV
+
+        # ── STEP 1: OpenCV HSV masking & defect detection ─────────────────────
         nparr = np.frombuffer(contents, np.uint8)
         img_cv = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        
-        total_tomato_pixels = 1 # Prevent division by zero
+
+        total_tomato_pixels = 1   # Prevent division by zero
         defect_pixels = 0
         defect_percentage = 0.0
-        
+        total_image_pixels = 160000  # default for 400x400
+
         if img_cv is not None:
-            # Resize to a consistent size for pixel counting
             img_cv = cv2.resize(img_cv, (400, 400))
+            total_image_pixels = 400 * 400   # 160,000 pixels
             hsv = cv2.cvtColor(img_cv, cv2.COLOR_BGR2HSV)
-            
-            # Masking tomato colors (red/orange/yellow/greenish)
-            lower_red1 = np.array([0, 40, 40])
-            upper_red1 = np.array([100, 255, 255])
-            mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
-            
-            lower_red2 = np.array([170, 40, 40])
+
+            # ── Tomato colour mask (inclusive of whole, cut, halved, green tomatoes) ──
+            # Red range 1 (Hue 0-12)
+            lower_red1 = np.array([0, 30, 30])
+            upper_red1 = np.array([12, 255, 255])
+            mask_red1 = cv2.inRange(hsv, lower_red1, upper_red1)
+
+            # Orange-yellow range (unripe / orange variety tomatoes, Hue 12-35)
+            lower_orange = np.array([12, 30, 30])
+            upper_orange = np.array([35, 255, 255])
+            mask_orange = cv2.inRange(hsv, lower_orange, upper_orange)
+
+            # Green range (unripe green tomatoes, stems, leaves, Hue 35-85)
+            lower_green = np.array([35, 25, 25])
+            upper_green = np.array([85, 255, 255])
+            mask_green = cv2.inRange(hsv, lower_green, upper_green)
+
+            # Red range 2 (Hue 160-180: deep red / crimson)
+            lower_red2 = np.array([160, 30, 30])
             upper_red2 = np.array([180, 255, 255])
-            mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
-            
-            tomato_mask = mask1 | mask2
-            
-            # Clean mask
-            kernel = np.ones((5,5), np.uint8)
-            tomato_mask = cv2.morphologyEx(tomato_mask, cv2.MORPH_CLOSE, kernel)
-            tomato_mask = cv2.morphologyEx(tomato_mask, cv2.MORPH_OPEN, kernel)
-            
-            total_tomato_pixels = cv2.countNonZero(tomato_mask)
+            mask_red2 = cv2.inRange(hsv, lower_red2, upper_red2)
+
+            tomato_color_mask = mask_red1 | mask_orange | mask_green | mask_red2
+
+            # Clean mask (use 3x3 kernel to preserve small details in cut/sliced images)
+            kernel = np.ones((3, 3), np.uint8)
+            tomato_color_mask = cv2.morphologyEx(tomato_color_mask, cv2.MORPH_CLOSE, kernel)
+            tomato_color_mask = cv2.morphologyEx(tomato_color_mask, cv2.MORPH_OPEN, kernel)
+
+            # Defect detection (dark spots, blemishes, brown areas)
+            lower_dark = np.array([0, 0, 0])
+            upper_dark = np.array([180, 255, 85])
+            mask_dark = cv2.inRange(hsv, lower_dark, upper_dark)
+
+            lower_brown1 = np.array([0, 20, 20])
+            upper_brown1 = np.array([30, 255, 150])
+            mask_brown1 = cv2.inRange(hsv, lower_brown1, upper_brown1)
+
+            lower_brown2 = np.array([160, 20, 20])
+            upper_brown2 = np.array([180, 255, 150])
+            mask_brown2 = cv2.inRange(hsv, lower_brown2, upper_brown2)
+
+            raw_defect_mask = mask_dark | mask_brown1 | mask_brown2
+
+            # Allow dark/brown defects that are adjacent or on tomato regions
+            dilation_kernel = np.ones((15, 15), np.uint8)
+            dilated_tomato_mask = cv2.dilate(tomato_color_mask, dilation_kernel, iterations=1)
+            defect_mask = cv2.bitwise_and(raw_defect_mask, raw_defect_mask, mask=dilated_tomato_mask)
+
+            # Combine to ensure we count rotten areas connected to tomato parts
+            combined_tomato_mask = tomato_color_mask | defect_mask
+
+            total_tomato_pixels = cv2.countNonZero(combined_tomato_mask)
             if total_tomato_pixels == 0:
                 total_tomato_pixels = 1
-                
-            # Defect Detection (dark spots, blemishes, brown areas)
-            # 1. Dark spots (Value < 80, making it less sensitive for mild shadows)
-            lower_dark = np.array([0, 0, 0])
-            upper_dark = np.array([180, 255, 80])
-            mask_dark = cv2.inRange(hsv, lower_dark, upper_dark)
-            
-            # 2. Brown/dark red areas (scars/blemishes)
-            # Hue around 0-30 or 160-180, with moderate-to-low Value (e.g. 50-140) and higher saturation
-            lower_brown1 = np.array([0, 40, 50])
-            upper_brown1 = np.array([30, 255, 140])
-            mask_brown1 = cv2.inRange(hsv, lower_brown1, upper_brown1)
-            
-            lower_brown2 = np.array([160, 40, 50])
-            upper_brown2 = np.array([180, 255, 140])
-            mask_brown2 = cv2.inRange(hsv, lower_brown2, upper_brown2)
-            
-            defect_mask = mask_dark | mask_brown1 | mask_brown2
-            
-            # Only count defects within the tomato area
-            defect_mask = cv2.bitwise_and(defect_mask, defect_mask, mask=tomato_mask)
-            
+
             defect_pixels = cv2.countNonZero(defect_mask)
             defect_percentage = round((defect_pixels / total_tomato_pixels) * 100, 2)
-        
-        # 2. Extract Metadata Forensics
-        image = Image.open(io.BytesIO(contents)).convert("RGB")
-        
+
+        # ── STEP 2: Model prediction (needed for confidence gate) ─────────────
+        pil_image = Image.open(io.BytesIO(contents)).convert("RGB")
+        img_resized = pil_image.resize((224, 224))
+        img_array = np.array(img_resized, dtype=np.float32)
+        img_array = np.expand_dims(img_array, axis=0)   # (1, 224, 224, 3)
+
+        model_predictions = None
+        max_confidence = 0.0
+        try:
+            model_predictions = model.predict(img_array, verbose=0)
+            max_confidence = float(np.max(model_predictions[0]))
+        except Exception as e:
+            print(f"Warning: Model prediction failed: {e}")
+
+        # ── STEP 3: TOMATO VALIDATION GATEKEEPER ─────────────────────────────
+        # Thresholds:
+        #   - MIN_PIXEL_RATIO: 2.5%
+        #   - MIN_CONFIDENCE: 0.22
+        MIN_PIXEL_RATIO = 0.025
+        MIN_CONFIDENCE = 0.22
+
+        pixel_ratio = float(total_tomato_pixels / total_image_pixels)
+
+        should_reject = False
+        reason = "Passed all validation checks"
+
+        # Reject ONLY if pixel_ratio < 2.5% AND confidence < 0.22
+        if pixel_ratio < MIN_PIXEL_RATIO and max_confidence < MIN_CONFIDENCE:
+            should_reject = True
+            reason = f"Rejected: Both pixel ratio ({pixel_ratio:.2%}) < {MIN_PIXEL_RATIO:.2%} and confidence ({max_confidence:.2f}) < {MIN_CONFIDENCE:.2f}"
+
+        decision = "Rejected" if should_reject else "Accepted"
+
+        # Required Debug Logs
+        print("===" * 20)
+        print("[TOMATO GATEKEEPER DEBUG LOG]")
+        print(f"  -> pixel_ratio:    {pixel_ratio:.4f} ({pixel_ratio:.2%})")
+        print(f"  -> max_confidence: {max_confidence:.4f} ({max_confidence:.2f})")
+        print(f"  -> decision:       {decision}")
+        print(f"  -> reason:         {reason}")
+        print("===" * 20)
+
+        if should_reject:
+            raise HTTPException(
+                status_code=400,
+                detail="This does not look like a tomato. Please upload a clear tomato photo."
+            )
+        # ─────────────────────────────────────────────────────────────────────
+        # ─────────────────────────────────────────────────────────────────────
+
+        # ── STEP 4: Metadata forensics ────────────────────────────────────────
         forensics = {
             "has_exif": False,
             "timestamp": None,
             "gps": None,
             "likely_live_camera": False
         }
-        
+
         try:
-            exif = image._getexif()
+            raw_pil = Image.open(io.BytesIO(contents))
+            exif = raw_pil._getexif()
             if exif:
                 forensics["has_exif"] = True
                 for tag, value in exif.items():
@@ -127,21 +191,11 @@ async def predict_crop_grade(file: UploadFile = File(...)):
                         forensics["timestamp"] = str(value)
                         forensics["likely_live_camera"] = True
                     elif decoded == "GPSInfo":
-                        forensics["gps"] = {"status": "present"} # Simplified GPS representation
+                        forensics["gps"] = {"status": "present"}
         except Exception:
             pass
-            
-        # 3. Model Prediction (Optional but kept for completeness if needed later)
-        img_resized = image.resize((224, 224))
-        img_array = np.array(img_resized, dtype=np.float32)
-        img_array = np.expand_dims(img_array, axis=0)  # Shape: (1, 224, 224, 3)
 
-        try:
-            _ = model.predict(img_array, verbose=0)
-        except Exception as e:
-            print(f"Warning: Model prediction failed: {e}")
-        
-        # Grading Logic based on OpenCV defect_percentage
+        # ── STEP 5: Grading based on defect_percentage ────────────────────────
         if defect_percentage <= 4:
             final_score = 95 - defect_percentage
             quality_grade = "A"
@@ -151,10 +205,9 @@ async def predict_crop_grade(file: UploadFile = File(...)):
         else:
             final_score = 50 - defect_percentage
             quality_grade = "C"
-            
+
         final_score = max(0.0, min(100.0, final_score))
-        
-        # Final cleaned production response
+
         return {
             "grade": quality_grade,
             "score": round(final_score, 2),
@@ -164,5 +217,8 @@ async def predict_crop_grade(file: UploadFile = File(...)):
             "forensics": forensics
         }
 
+    except HTTPException:
+        # Re-raise validation / known HTTP errors as-is
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

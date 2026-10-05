@@ -136,7 +136,8 @@ export class MatchingService {
       where: { order_id: matchLog.order_id },
     });
 
-    if (order?.status === 'MATCHED' || order?.farmer_id) {
+    // Only block if order already matched; listing orders have farmer_id set but status still PENDING
+    if (order?.status === 'MATCHED') {
       throw new ConflictException('This order has already been accepted by another farmer.');
     }
 
@@ -155,6 +156,24 @@ export class MatchingService {
       },
       include: { product: true, buyer: true },
     });
+
+    // 3. If this order originated from a FarmerListing, deduct quantity now
+    if (order?.listing_id) {
+      const listing = await this.prisma.farmerListing.findUnique({
+        where: { listing_id: order.listing_id },
+      });
+      if (listing) {
+        const newQty = listing.quantity - (order.quantity ?? 0);
+        await this.prisma.farmerListing.update({
+          where: { listing_id: order.listing_id },
+          data: {
+            quantity: Math.max(newQty, 0),
+            status: newQty <= 0 ? 'SOLD' : 'AVAILABLE',
+          },
+        });
+        console.log(`📦 Listing ${order.listing_id} quantity updated → ${Math.max(newQty, 0)} kg remaining`);
+      }
+    }
 
     console.log(`✅ Match ACCEPTED — Order ${matchLog.order_id} assigned to Farmer ${matchLog.notified_farmer_id}`);
 
