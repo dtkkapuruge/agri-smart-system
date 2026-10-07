@@ -10,40 +10,36 @@ interface StatCardProps {
 
 export default function StatCard({ icon, label, value, sub, accent }: StatCardProps) {
   return (
-    <div
-      className={`stat-card${accent ? ' accent' : ''}`}
-    >
-      {/* Icon */}
+    <div className={`stat-card flex flex-col justify-between p-5 rounded-2xl transition-all ${accent ? 'accent' : ''}`}>
       <div
-        className="w-9 h-9 rounded-xl flex items-center justify-center mb-3 flex-shrink-0"
+        className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 shrink-0 border"
         style={accent
-          ? { background: 'linear-gradient(135deg, #d1fae5, #dcfce7)', color: '#16a34a' }
-          : { background: 'linear-gradient(135deg, #f1f5f9, #f8fafc)', color: '#64748b' }
+          ? { background: 'linear-gradient(135deg, #d1fae5, #dcfce7)', color: '#15803d', borderColor: '#bbf7d0' }
+          : { background: 'linear-gradient(135deg, #f8fafc, #f1f5f9)', color: '#475569', borderColor: '#e2e8f0' }
         }
       >
-        {typeof icon === 'string' ? <span className="text-lg">{icon}</span> : icon}
+        {typeof icon === 'string' ? <span className="text-xl">{icon}</span> : icon}
       </div>
 
-      {/* Value */}
-      <p
-        className="text-[1.6rem] font-black leading-none mb-1 tracking-tight"
-        style={{ color: accent ? '#15803d' : '#0f172a' }}
-      >
-        {value}
-      </p>
-
-      {/* Label */}
-      <p
-        className="text-xs font-semibold mb-0.5"
-        style={{ color: accent ? '#16a34a' : '#64748b' }}
-      >
-        {label}
-      </p>
-
-      {/* Sub */}
-      {sub && (
-        <p className="text-[11px]" style={{ color: '#94a3b8' }}>{sub}</p>
-      )}
+      <div className="space-y-0.5">
+        <p
+          className="text-2xl font-black leading-tight tracking-tight"
+          style={{ color: accent ? '#15803d' : '#0f172a' }}
+        >
+          {value}
+        </p>
+        <p
+          className="text-xs font-bold"
+          style={{ color: accent ? '#16a34a' : '#475569' }}
+        >
+          {label}
+        </p>
+        {sub && (
+          <p className="text-[11px] font-medium text-gray-400">
+            {sub}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

@@ -32,11 +32,53 @@ interface AuthContextType {
     password: string
   ) => Promise<{ error: AuthError | null; role?: UserRole }>;
   signOut: () => Promise<void>;
+  devRole?: UserRole | null;
+  setDevRole?: (role: UserRole | null) => void;
 }
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+function createMockDevData(role: UserRole) {
+  const email = `dev.${role}@agrismart.local`;
+  const fullName = `Dev ${role.charAt(0).toUpperCase() + role.slice(1)}`;
+  const id = `dev-${role}-id`;
+
+  const mockUser: User = {
+    id,
+    app_metadata: { provider: 'email' },
+    user_metadata: { role, full_name: fullName, phone: '+94 77 123 4567' },
+    aud: 'authenticated',
+    created_at: new Date().toISOString(),
+    email,
+    phone: '+94 77 123 4567',
+    role: 'authenticated',
+    updated_at: new Date().toISOString(),
+  } as unknown as User;
+
+  const mockSession: Session = {
+    access_token: 'dev-mock-access-token',
+    refresh_token: 'dev-mock-refresh-token',
+    expires_in: 3600,
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
+    token_type: 'bearer',
+    user: mockUser,
+  };
+
+  const mockProfile: UserProfile = {
+    id,
+    user_id: id,
+    profile_id: id,
+    email,
+    role,
+    full_name: fullName,
+    phone: '+94 77 123 4567',
+    created_at: new Date().toISOString(),
+  };
+
+  return { mockUser, mockSession, mockProfile };
+}
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
@@ -45,6 +87,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [devRole, setDevRoleState] = useState<UserRole | null>(null);
+
+  const applyDevRole = (role: UserRole | null) => {
+    if (typeof window === 'undefined') return;
+    if (role) {
+      localStorage.setItem('agri_dev_role', role);
+      document.cookie = `agri_dev_role=${role}; path=/; max-age=86400; SameSite=Lax`;
+      const { mockUser, mockSession, mockProfile } = createMockDevData(role);
+      setUser(mockUser);
+      setSession(mockSession);
+      setProfile(mockProfile);
+      setDevRoleState(role);
+    } else {
+      localStorage.removeItem('agri_dev_role');
+      document.cookie = 'agri_dev_role=; path=/; max-age=0; SameSite=Lax';
+      setDevRoleState(null);
+      setUser(null);
+      setSession(null);
+      setProfile(null);
+    }
+  };
+
+  const setDevRole = (role: UserRole | null) => {
+    applyDevRole(role);
+  };
 
   async function fetchProfile(userId: string): Promise<UserProfile | null> {
     log('Building profile from auth session for userId:', userId);
@@ -108,14 +175,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
+    // Check if in development and a dev role was previously set
+    const storedDevRole = typeof window !== 'undefined'
+      ? (localStorage.getItem('agri_dev_role') as UserRole | null)
+      : null;
+
     // Get current session on mount
     log('Initializing auth — checking existing session...');
     supabase.auth.getSession().then(({ data: { session } }) => {
       log('getSession result:', session ? `user=${session.user.email}` : 'no session');
-      setSession(session);
-      setUser(session?.user ?? null);
       if (session?.user) {
+        setSession(session);
+        setUser(session.user);
         fetchProfile(session.user.id);
+      } else if (process.env.NODE_ENV === 'development' && storedDevRole) {
+        log('Restoring dev role from localStorage:', storedDevRole);
+        applyDevRole(storedDevRole);
       }
       setLoading(false);
     });
@@ -125,12 +200,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       log('onAuthStateChange event:', event, '| user:', session?.user?.email ?? 'none');
-      setSession(session);
-      setUser(session?.user ?? null);
       if (session?.user) {
+        setSession(session);
+        setUser(session.user);
         fetchProfile(session.user.id);
       } else {
-        setProfile(null);
+        const devRoleCurrent = typeof window !== 'undefined'
+          ? (localStorage.getItem('agri_dev_role') as UserRole | null)
+          : null;
+        if (process.env.NODE_ENV === 'development' && devRoleCurrent) {
+          applyDevRole(devRoleCurrent);
+        } else {
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+        }
       }
       setLoading(false);
     });
@@ -146,7 +230,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     role: UserRole,
     fullName?: string
   ) => {
-    const { data, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -187,13 +271,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('agri_dev_role');
+      document.cookie = 'agri_dev_role=; path=/; max-age=0; SameSite=Lax';
+      setDevRoleState(null);
+    }
     await supabase.auth.signOut();
     setProfile(null);
+    setUser(null);
+    setSession(null);
   };
 
   return (
     <AuthContext.Provider
-      value={{ user, session, profile, loading, signUp, signIn, signOut }}
+      value={{ user, session, profile, loading, signUp, signIn, signOut, devRole, setDevRole }}
     >
       {children}
     </AuthContext.Provider>

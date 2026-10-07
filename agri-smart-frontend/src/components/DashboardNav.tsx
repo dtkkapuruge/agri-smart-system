@@ -22,7 +22,7 @@ export default function DashboardNav({ title, subtitle }: DashboardNavProps) {
     : user?.email?.[0]?.toUpperCase() ?? '?';
 
   return (
-    <header className="sticky top-0 z-50 px-4 py-3"
+    <header className="sticky top-0 z-50 w-full"
       style={{
         background: 'rgba(255,255,255,0.92)',
         backdropFilter: 'blur(24px)',
@@ -30,7 +30,7 @@ export default function DashboardNav({ title, subtitle }: DashboardNavProps) {
         borderBottom: '1px solid rgba(22,163,74,0.08)',
         boxShadow: '0 2px 16px rgba(0,0,0,0.04)',
       }}>
-      <div className="flex items-center justify-between max-w-screen-lg mx-auto">
+      <div className="page-container flex items-center justify-between py-3.5">
         {/* Left: brand + page title */}
         <div className="flex items-center gap-3">
           <div

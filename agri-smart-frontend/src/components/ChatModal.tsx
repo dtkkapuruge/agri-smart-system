@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { X, Send, Loader2, MessageCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
-interface ChatMessage {
+export interface ChatMessage {
   message_id: string;
   sender_id: string;
   sender_role: string;
@@ -13,19 +13,21 @@ interface ChatMessage {
 interface ChatModalProps {
   orderId: string;
   onClose: () => void;
+  mockMessages?: ChatMessage[];
 }
 
-export default function ChatModal({ orderId, onClose }: ChatModalProps) {
+export default function ChatModal({ orderId, onClose, mockMessages }: ChatModalProps) {
   const { session, user } = useAuth();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(mockMessages ?? []);
   const [inputText, setInputText] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!mockMessages);
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
   const fetchMessages = async () => {
+    if (mockMessages) return;
     if (!session?.access_token) return;
     try {
       const res = await fetch(`${API_URL}/chat/${orderId}/messages`, {
@@ -43,10 +45,11 @@ export default function ChatModal({ orderId, onClose }: ChatModalProps) {
   };
 
   useEffect(() => {
+    if (mockMessages) return;
     fetchMessages();
     const interval = setInterval(fetchMessages, 3000); // Poll every 3 seconds
     return () => clearInterval(interval);
-  }, [orderId, session?.access_token]);
+  }, [orderId, session?.access_token, mockMessages]);
 
   useEffect(() => {
     // Scroll to bottom
@@ -55,7 +58,22 @@ export default function ChatModal({ orderId, onClose }: ChatModalProps) {
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim() || !session?.access_token) return;
+    if (!inputText.trim()) return;
+
+    if (mockMessages) {
+      const newMsg: ChatMessage = {
+        message_id: 'mock-' + Date.now(),
+        sender_id: user?.id ?? 'me',
+        sender_role: 'buyer',
+        text: inputText.trim(),
+        created_at: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, newMsg]);
+      setInputText('');
+      return;
+    }
+
+    if (!session?.access_token) return;
     
     setSending(true);
     try {

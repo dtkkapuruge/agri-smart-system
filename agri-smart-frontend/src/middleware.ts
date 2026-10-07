@@ -2,13 +2,21 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 // Paths that are publicly accessible (no auth required)
-const PUBLIC_PATHS = ['/', '/auth/login', '/auth/signup'];
+const PUBLIC_PATHS = ['/', '/auth/login', '/auth/signup', '/dev', '/dev/components'];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Allow public paths
-  if (PUBLIC_PATHS.includes(pathname)) {
+  // Allow public paths and any /dev paths
+  if (PUBLIC_PATHS.includes(pathname) || pathname.startsWith('/dev')) {
+    return NextResponse.next();
+  }
+
+  // ─── Development Backdoor Bypass ───────────────────────────────────────────
+  // In development mode only, allow access if the agri_dev_role cookie is present
+  const isEnabled = process.env.NEXT_PUBLIC_ENABLE_DEV_BACKDOOR === 'true';
+  const devRoleCookie = request.cookies.get('agri_dev_role')?.value;
+  if (isEnabled && devRoleCookie) {
     return NextResponse.next();
   }
 

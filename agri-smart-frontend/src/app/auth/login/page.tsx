@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useState, FormEvent, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { UserRole } from '@/lib/supabase';
+import { KeyRound, Mail, User, ShieldCheck, Tractor, ShoppingBag, ArrowRight, Loader2 } from 'lucide-react';
 
 type Mode = 'login' | 'signup';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get('redirect') ?? '';
@@ -52,64 +53,39 @@ export default function LoginPage() {
   };
 
   return (
-    <main
-      className="min-h-screen flex items-center justify-center px-4 py-12 relative overflow-hidden"
-      style={{
-        background: 'linear-gradient(160deg, #ecfdf5 0%, #f8fffe 40%, #f0fdf4 80%, #e8f5ed 100%)',
-      }}
-    >
-      {/* Decorative background blobs */}
+    <main className="min-h-screen w-full flex items-center justify-center px-4 py-12 bg-gradient-to-br from-emerald-50 via-white to-green-50 relative overflow-hidden">
+      {/* Background Decorative Blur Orbs */}
       <div
         aria-hidden="true"
-        className="absolute top-[-80px] right-[-60px] w-72 h-72 rounded-full pointer-events-none"
-        style={{ background: 'radial-gradient(circle, rgba(34,197,94,0.12) 0%, transparent 70%)' }}
+        className="absolute top-[-100px] right-[-80px] w-96 h-96 rounded-full bg-emerald-300/20 blur-3xl pointer-events-none"
       />
       <div
         aria-hidden="true"
-        className="absolute bottom-[-60px] left-[-40px] w-64 h-64 rounded-full pointer-events-none"
-        style={{ background: 'radial-gradient(circle, rgba(16,185,129,0.10) 0%, transparent 70%)' }}
+        className="absolute bottom-[-100px] left-[-80px] w-96 h-96 rounded-full bg-green-400/20 blur-3xl pointer-events-none"
       />
 
-      <div className="w-full max-w-[400px] animate-fade-up relative z-10">
+      <div className="w-full max-w-[420px] mx-auto relative z-10 flex flex-col gap-6">
 
-        {/* Brand */}
-        <div className="text-center mb-8">
-          <div
-            className="inline-flex items-center justify-center w-18 h-18 rounded-3xl mb-5 relative"
-            style={{
-              width: 72, height: 72,
-              background: 'linear-gradient(135deg, #15803d 0%, #22c55e 100%)',
-              boxShadow: '0 12px 32px rgba(22,163,74,0.30), 0 4px 8px rgba(22,163,74,0.15)',
-            }}
-          >
-            <span className="text-4xl" style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.15))' }}>🌱</span>
+        {/* Header / Brand */}
+        <div className="text-center flex flex-col items-center gap-2">
+          <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-emerald-700 to-green-500 flex items-center justify-center text-white shadow-xl shadow-emerald-600/30 ring-4 ring-white">
+            <span className="text-3xl">🌱</span>
           </div>
-          <h1 className="text-3xl font-black tracking-tight text-gray-900">
-            Agri<span style={{ color: '#16a34a' }}>Smart</span>
+          <h1 className="text-3xl font-black tracking-tight text-gray-900 mt-1">
+            Agri<span className="text-emerald-600">Smart</span>
           </h1>
-          <p className="text-sm mt-2 font-medium" style={{ color: '#64748b' }}>
+          <p className="text-xs font-semibold text-gray-500">
             {mode === 'login'
-              ? 'Welcome back to the marketplace'
-              : 'Create your account to get started'}
+              ? 'Welcome back! Sign in to access your marketplace'
+              : 'Join AgriSmart to start trading AI-graded produce'}
           </p>
         </div>
 
-        {/* Card */}
-        <div
-          className="glass-card rounded-3xl p-7 sm:p-8 glow-green"
-          style={{
-            background: 'rgba(255,255,255,0.92)',
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            border: '1px solid rgba(22,163,74,0.10)',
-            boxShadow: '0 24px 64px rgba(0,0,0,0.10), 0 4px 16px rgba(22,163,74,0.08)',
-          }}
-        >
-          {/* Mode Tabs */}
-          <div
-            className="flex p-1 rounded-2xl mb-7"
-            style={{ background: '#f1f5f9' }}
-          >
+        {/* Main Glass Card Form Container */}
+        <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-6 sm:p-8 shadow-2xl border border-emerald-500/15 flex flex-col gap-6">
+
+          {/* Mode Switcher Tabs */}
+          <div className="flex bg-gray-100 p-1.5 rounded-2xl">
             {(['login', 'signup'] as Mode[]).map((m) => (
               <button
                 key={m}
@@ -119,210 +95,143 @@ export default function LoginPage() {
                   setError('');
                   setSuccess('');
                 }}
-                className="flex-1 py-2.5 text-sm font-bold rounded-xl transition-all duration-250"
-                style={mode === m
-                  ? {
-                      background: '#fff',
-                      color: '#16a34a',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.10)',
-                    }
-                  : { color: '#94a3b8' }
-                }
+                className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all duration-200 ${
+                  mode === m
+                    ? 'bg-white text-emerald-700 shadow-sm'
+                    : 'text-gray-400 hover:text-gray-700'
+                }`}
               >
-                {m === 'login' ? 'Log In' : 'Sign Up'}
+                {m === 'login' ? 'Log In' : 'Create Account'}
               </button>
             ))}
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Full Name */}
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+
+            {/* Full Name (Sign Up only) */}
             {mode === 'signup' && (
-              <div className="animate-fade-up">
-                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-emerald-600" />
                   Full Name
                 </label>
                 <input
                   type="text"
                   autoComplete="name"
-                  className="w-full px-4 py-3.5 rounded-2xl text-sm transition-all"
-                  style={{
-                    background: 'rgba(240,253,244,0.6)',
-                    border: '1.5px solid rgba(22,163,74,0.14)',
-                    color: '#0f172a',
-                    outline: 'none',
-                    fontFamily: 'inherit',
-                  }}
-                  placeholder="e.g. Ravi Kumar"
+                  required
+                  placeholder="e.g. Kamal Perera"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = '#22c55e';
-                    e.target.style.background = '#fff';
-                    e.target.style.boxShadow = '0 0 0 4px rgba(22,163,74,0.08)';
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = 'rgba(22,163,74,0.14)';
-                    e.target.style.background = 'rgba(240,253,244,0.6)';
-                    e.target.style.boxShadow = 'none';
-                  }}
-                  required
+                  className="w-full px-4 py-3 rounded-2xl text-xs bg-emerald-50/50 border border-emerald-500/20 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 transition-all"
                 />
               </div>
             )}
 
-            {/* Email */}
-            <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
+            {/* Email Address */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider flex items-center gap-1.5">
+                <Mail className="w-3.5 h-3.5 text-emerald-600" />
                 Email Address
               </label>
               <input
                 type="email"
                 autoComplete="email"
-                className="w-full px-4 py-3.5 rounded-2xl text-sm transition-all"
-                style={{
-                  background: 'rgba(240,253,244,0.6)',
-                  border: '1.5px solid rgba(22,163,74,0.14)',
-                  color: '#0f172a',
-                  outline: 'none',
-                  fontFamily: 'inherit',
-                }}
+                required
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                onFocus={(e) => {
-                  e.target.style.borderColor = '#22c55e';
-                  e.target.style.background = '#fff';
-                  e.target.style.boxShadow = '0 0 0 4px rgba(22,163,74,0.08)';
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = 'rgba(22,163,74,0.14)';
-                  e.target.style.background = 'rgba(240,253,244,0.6)';
-                  e.target.style.boxShadow = 'none';
-                }}
-                required
+                className="w-full px-4 py-3 rounded-2xl text-xs bg-emerald-50/50 border border-emerald-500/20 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 transition-all"
               />
             </div>
 
             {/* Password */}
-            <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider flex items-center gap-1.5">
+                <KeyRound className="w-3.5 h-3.5 text-emerald-600" />
                 Password
               </label>
               <input
                 type="password"
                 autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                className="w-full px-4 py-3.5 rounded-2xl text-sm transition-all"
-                style={{
-                  background: 'rgba(240,253,244,0.6)',
-                  border: '1.5px solid rgba(22,163,74,0.14)',
-                  color: '#0f172a',
-                  outline: 'none',
-                  fontFamily: 'inherit',
-                }}
+                required
+                minLength={6}
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                onFocus={(e) => {
-                  e.target.style.borderColor = '#22c55e';
-                  e.target.style.background = '#fff';
-                  e.target.style.boxShadow = '0 0 0 4px rgba(22,163,74,0.08)';
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = 'rgba(22,163,74,0.14)';
-                  e.target.style.background = 'rgba(240,253,244,0.6)';
-                  e.target.style.boxShadow = 'none';
-                }}
-                required
-                minLength={6}
+                className="w-full px-4 py-3 rounded-2xl text-xs bg-emerald-50/50 border border-emerald-500/20 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 transition-all"
               />
             </div>
 
-            {/* Role selector */}
-            <div>
-              <label className="block text-xs font-bold text-gray-500 mb-2.5 uppercase tracking-wide">
+            {/* Role Selector */}
+            <div className="flex flex-col gap-1.5 pt-1">
+              <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wider flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                 I am a…
               </label>
               <div className="grid grid-cols-2 gap-3">
-                {(['farmer', 'buyer'] as UserRole[]).map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => setRole(r)}
-                    className="flex flex-col items-center justify-center gap-2 py-4 rounded-2xl transition-all duration-200"
-                    style={role === r
-                      ? {
-                          background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
-                          border: '2px solid #22c55e',
-                          boxShadow: '0 4px 12px rgba(22,163,74,0.15)',
-                        }
-                      : {
-                          background: '#f8fafc',
-                          border: '2px solid #e2e8f0',
-                        }
-                    }
-                  >
-                    <span className="text-2xl">{r === 'farmer' ? '👨‍🌾' : '🧑‍💼'}</span>
-                    <span
-                      className="text-sm font-bold capitalize"
-                      style={{ color: role === r ? '#15803d' : '#64748b' }}
-                    >
-                      {r}
-                    </span>
-                  </button>
-                ))}
+                <button
+                  type="button"
+                  onClick={() => setRole('farmer')}
+                  className={`flex items-center justify-center gap-2 p-3.5 rounded-2xl border text-xs font-bold transition-all ${
+                    role === 'farmer'
+                      ? 'bg-gradient-to-br from-emerald-50 to-green-100 border-emerald-500 text-emerald-800 shadow-xs ring-2 ring-emerald-500/20'
+                      : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <Tractor className="w-4 h-4 text-emerald-600" />
+                  <span>Farmer</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setRole('buyer')}
+                  className={`flex items-center justify-center gap-2 p-3.5 rounded-2xl border text-xs font-bold transition-all ${
+                    role === 'buyer'
+                      ? 'bg-gradient-to-br from-emerald-50 to-green-100 border-emerald-500 text-emerald-800 shadow-xs ring-2 ring-emerald-500/20'
+                      : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <ShoppingBag className="w-4 h-4 text-emerald-600" />
+                  <span>Buyer</span>
+                </button>
               </div>
             </div>
 
-            {/* Messages */}
+            {/* Alerts */}
             {error && (
-              <div
-                className="text-sm rounded-2xl px-4 py-3.5 flex items-start gap-2.5 animate-fade-in"
-                style={{
-                  background: '#fef2f2',
-                  border: '1px solid #fecaca',
-                  color: '#b91c1c',
-                }}
-              >
-                <span className="text-base leading-none mt-0.5 flex-shrink-0">⚠️</span>
-                <span className="font-medium">{error}</span>
+              <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-center gap-2">
+                <span>⚠️ {error}</span>
               </div>
             )}
             {success && (
-              <div
-                className="text-sm rounded-2xl px-4 py-3.5 flex items-start gap-2.5 animate-fade-in"
-                style={{
-                  background: '#f0fdf4',
-                  border: '1px solid #bbf7d0',
-                  color: '#15803d',
-                }}
-              >
-                <span className="text-base leading-none mt-0.5 flex-shrink-0">✅</span>
-                <span className="font-medium">{success}</span>
+              <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium flex items-center gap-2">
+                <span>✅ {success}</span>
               </div>
             )}
 
-            {/* Submit */}
+            {/* Submit CTA */}
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-4 rounded-2xl text-sm font-bold text-white transition-all duration-200 mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{
-                background: loading
-                  ? '#86efac'
-                  : 'linear-gradient(135deg, #16a34a 0%, #22c55e 100%)',
-                boxShadow: loading ? 'none' : '0 8px 24px rgba(22,163,74,0.30), 0 2px 6px rgba(22,163,74,0.15)',
-                letterSpacing: '-0.01em',
-              }}
+              className="mt-2 w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-green-600 text-white font-bold text-xs shadow-md shadow-emerald-600/30 hover:from-emerald-500 hover:to-green-500 active:scale-[0.99] transition-all flex items-center justify-center gap-2 disabled:opacity-60"
             >
-              {loading
-                ? (mode === 'login' ? 'Logging in…' : 'Creating account…')
-                : (mode === 'login' ? 'Log In →' : 'Create Account →')}
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Processing…</span>
+                </>
+              ) : (
+                <>
+                  <span>{mode === 'login' ? 'Log In to Marketplace' : 'Create Account'}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
             </button>
           </form>
         </div>
 
-        <p className="text-center text-xs mt-6 font-medium" style={{ color: '#94a3b8' }}>
-          By continuing you agree to our Terms &amp; Privacy Policy
+        <p className="text-center text-[11px] font-medium text-gray-400">
+          By continuing you agree to AgriSmart Terms & Privacy Policy
         </p>
       </div>
     </main>
@@ -341,4 +250,18 @@ function getDashboardPath(role: UserRole): string {
     default:
       return '/dashboard/farmer';
   }
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-emerald-50">
+          <div className="w-8 h-8 rounded-full border-2 border-emerald-600 border-t-transparent animate-spin" />
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
+  );
 }

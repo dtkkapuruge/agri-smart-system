@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import { AuthProvider } from '@/context/AuthContext';
+import DevBackdoor from '@/components/DevBackdoor';
 import './globals.css';
 
 const inter = Inter({
@@ -30,7 +31,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <body className="min-h-screen bg-background font-sans antialiased">
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          {children}
+          <DevBackdoor />
+        </AuthProvider>
       </body>
     </html>
   );

@@ -420,7 +420,7 @@ export default function BuyerDashboard() {
     >
       <DashboardNav title="Buyer Marketplace" subtitle={`Hi, ${name}`} />
 
-      <main className="flex-1 px-4 py-6 sm:px-6 max-w-screen-lg mx-auto w-full space-y-8">
+      <main className="flex-1 page-container py-8 space-y-8">
 
         {/* ===== STATS ===== */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 animate-fade-up">

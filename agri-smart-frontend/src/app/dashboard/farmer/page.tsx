@@ -343,18 +343,8 @@ export default function FarmerDashboard() {
       <DashboardNav title="Farmer Dashboard" subtitle={`Welcome, ${name}`} />
 
       {/* Tab Bar */}
-      <div
-        className="sticky z-40"
-        style={{
-          top: '57px',
-          background: 'rgba(255,255,255,0.92)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          borderBottom: '1px solid rgba(22,163,74,0.08)',
-          boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
-        }}
-      >
-        <div className="max-w-screen-md mx-auto flex">
+      <div className="bg-white/95 backdrop-blur-md border-b border-emerald-500/10 shadow-2xs">
+        <div className="page-container flex">
           {tabs.map((tab) => (
             <button
               key={tab.key}
@@ -379,59 +369,52 @@ export default function FarmerDashboard() {
         </div>
       </div>
 
-      <main className="flex-1 px-4 py-6 max-w-screen-md mx-auto w-full">
+      <main className="flex-1 page-container py-8 space-y-8">
 
         {/* ── HOME TAB ──────────────────────────────────────────────────── */}
         {activeTab === 'home' && (
-          <div className="space-y-6 animate-fade-up">
+          <div className="space-y-8 animate-fade-up">
 
             {/* Hero / Greeting Card */}
-            <div className="hero-card glow-green p-6 text-white relative">
-              <div className="relative z-10">
-                <p className="text-green-200 text-sm mb-1 font-medium">Good day 👋</p>
-                <h2 className="text-2xl font-black tracking-tight">Hello, {name}!</h2>
-                <p className="text-green-100 text-sm mt-1 mb-5 font-medium">Ready to grade your produce today?</p>
+            <div className="hero-card glow-green text-white relative rounded-3xl p-6 sm:p-8">
+              <div className="relative z-10 flex flex-col items-start gap-2">
+                <span className="text-emerald-200 text-xs font-bold uppercase tracking-wider">Good day 👋</span>
+                <h2 className="text-2xl sm:text-3xl font-black tracking-tight">Hello, {name}!</h2>
+                <p className="text-emerald-100 text-xs sm:text-sm font-medium mb-1">Ready to grade your produce today?</p>
                 <button
                   onClick={() => setActiveTab('grade')}
-                  className="font-bold text-sm px-6 py-3 rounded-2xl transition-all hover:scale-105 active:scale-[0.98] inline-flex items-center gap-2"
-                  style={{
-                    background: 'rgba(255,255,255,0.92)',
-                    color: '#15803d',
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
-                    backdropFilter: 'blur(8px)',
-                  }}
+                  className="font-bold text-xs px-5 py-3 rounded-xl transition-all hover:bg-white bg-white/95 text-emerald-800 shadow-md flex items-center gap-2 mt-2"
                 >
-                  Grade Now
-                  <span className="text-base">→</span>
+                  Grade Now →
                 </button>
               </div>
             </div>
 
             {/* Stats Grid */}
-            <div>
-              <p className="section-label mb-3">Overview</p>
-              <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-3">
+              <p className="section-label">Overview</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <StatCard
-                  icon={<Award className="w-4 h-4" />}
+                  icon={<Award className="w-5 h-5" />}
                   label="Submissions"
                   value={dashboardStats?.totalSubmissions?.toString() ?? "0"}
                   sub="Total graded"
                 />
                 <StatCard
-                  icon={<TrendingUp className="w-4 h-4" />}
+                  icon={<TrendingUp className="w-5 h-5" />}
                   label="Grade A Rate"
                   value={dashboardStats?.gradeARate != null ? `${dashboardStats?.gradeARate}%` : "—"}
                   sub="Of total graded"
                   accent
                 />
                 <StatCard
-                  icon={<DollarSign className="w-4 h-4" />}
+                  icon={<DollarSign className="w-5 h-5" />}
                   label="Revenue"
                   value={`Rs. ${dashboardStats?.revenue?.toFixed(2) ?? "0.00"}`}
                   sub="Estimated value"
                 />
                 <StatCard
-                  icon={<Package className="w-4 h-4" />}
+                  icon={<Package className="w-5 h-5" />}
                   label="Open Orders"
                   value={dashboardStats?.openOrders?.toString() ?? "0"}
                   sub="Pending acceptance"
@@ -701,28 +684,20 @@ export default function FarmerDashboard() {
                   })}
                 </div>
               ) : (
-                <div
-                  className="rounded-2xl py-12 flex flex-col items-center gap-4"
-                  style={{ background: '#fff', border: '1px solid rgba(22,163,74,0.08)', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
-                >
+                <div className="rounded-3xl p-8 sm:p-10 flex flex-col items-center justify-center text-center gap-3 bg-white border border-emerald-500/10 shadow-xs">
                   <div
                     className="w-14 h-14 rounded-2xl flex items-center justify-center"
                     style={{ background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)' }}
                   >
-                    <Inbox className="w-7 h-7" style={{ color: '#86efac' }} />
+                    <Inbox className="w-7 h-7 text-emerald-600" />
                   </div>
-                  <div className="text-center">
-                    <p className="text-sm font-bold text-gray-700">No submissions yet</p>
-                    <p className="text-xs font-medium mt-1" style={{ color: '#94a3b8' }}>Grade your first produce to see it here.</p>
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-bold text-gray-800">No submissions yet</p>
+                    <p className="text-xs font-medium text-gray-400">Grade your first produce to see it here.</p>
                   </div>
                   <button
                     onClick={() => setActiveTab('grade')}
-                    className="text-sm font-bold px-5 py-2.5 rounded-2xl transition-all"
-                    style={{
-                      background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)',
-                      color: '#15803d',
-                      border: '1px solid #bbf7d0',
-                    }}
+                    className="text-xs font-bold px-5 py-2.5 rounded-xl transition-all bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 shadow-2xs mt-1"
                   >
                     Grade Produce →
                   </button>
@@ -1129,7 +1104,7 @@ export default function FarmerDashboard() {
                     const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
                     const formData = new FormData();
                     formData.append('image', listingImageFile);
-                    formData.append('farmer_id', farmerId);
+                    formData.append('farmer_id', farmerId ?? '');
                     formData.append('product_id', listingProduct);
                     formData.append('quantity', listingQuantity);
 
